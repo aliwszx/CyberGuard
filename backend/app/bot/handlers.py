@@ -8,6 +8,7 @@ from backend.app.services.user_service import UserService
 from backend.scanners.whois_scanner import WhoisScanner
 from backend.scanners.ip_scanner import IPScanner
 from backend.scanners.geoip_scanner import GeoIPScanner
+from backend.scanners.dns_scanner import DNSScanner
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ user_service = UserService()
 whois_scanner = WhoisScanner()
 ip_scanner = IPScanner()
 geoip_scanner = GeoIPScanner()
+dns_scanner = DNSScanner()
 
 
 # =========================
