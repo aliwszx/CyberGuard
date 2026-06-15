@@ -6,8 +6,8 @@ from aiogram.filters import Command
 import asyncio
 
 # sys.path bot.py-da artıq set olunub
-from scanners.whois_scanner import WhoisScanner
-from scanners.ip_scanner import IPScanner
+from backend.scanners.whois_scanner import WhoisScanner
+from backend.scanners.ip_scanner import IPScanner
 
 router = Router()
 
