@@ -27,7 +27,6 @@ ip_scanner = IPScanner()
 @router.message(Command("start"))
 async def start(message: types.Message):
 
-```
 user = await user_service.get_or_create_user(
     telegram_id=str(message.from_user.id),
     username=message.from_user.username
@@ -42,7 +41,6 @@ await message.answer(
     f"👤 User ID: <code>{user.id}</code>",
     parse_mode="HTML"
 )
-```
 
 # =========================
 
@@ -53,7 +51,6 @@ await message.answer(
 @router.message(Command("whois"))
 async def whois_cmd(message: types.Message):
 
-```
 args = message.text.split()
 
 if len(args) < 2:
@@ -112,7 +109,6 @@ except Exception as e:
         f"❌ Xəta:\n<code>{str(e)}</code>",
         parse_mode="HTML"
     )
-```
 
 # =========================
 
@@ -123,7 +119,6 @@ except Exception as e:
 @router.message(Command("ipintel"))
 async def ipintel_cmd(message: types.Message):
 
-```
 args = message.text.split()
 
 if len(args) < 2:
@@ -180,8 +175,6 @@ except Exception as e:
         f"❌ Xəta:\n<code>{str(e)}</code>",
         parse_mode="HTML"
     )
-```
-
 # =========================
 
 # SCAN
@@ -191,7 +184,6 @@ except Exception as e:
 @router.message(Command("scan"))
 async def scan_cmd(message: types.Message):
 
-```
 args = message.text.split()
 
 if len(args) < 2:
@@ -241,4 +233,3 @@ except Exception as e:
         f"❌ Scan xətası:\n<code>{str(e)}</code>",
         parse_mode="HTML"
     )
-```
