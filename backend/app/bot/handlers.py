@@ -6,8 +6,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-from services.scanner_service import ScannerService
-from app.services.user_service import UserService
+from backend.services.scanner_service import ScannerService
+from backend.app.services.user_service import UserService
 
 router = Router()
 
