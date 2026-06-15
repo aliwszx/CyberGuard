@@ -9,6 +9,7 @@ from backend.scanners.whois_scanner import WhoisScanner
 from backend.scanners.ip_scanner import IPScanner
 from backend.scanners.geoip_scanner import GeoIPScanner
 from backend.scanners.dns_scanner import DNSScanner
+from backend.scanners.subdomain_scanner import SubdomainScanner
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ whois_scanner = WhoisScanner()
 ip_scanner = IPScanner()
 geoip_scanner = GeoIPScanner()
 dns_scanner = DNSScanner()
-
+subdomain_scanner = SubdomainScanner()
 
 # =========================
 # START
@@ -378,5 +379,83 @@ async def scan_cmd(message: types.Message):
 
         await message.answer(
             f"❌ Scan xətası:\n<code>{str(e)}</code>",
+            parse_mode="HTML"
+        )
+
+@router.message(Command("subdomains"))
+async def subdomains_cmd(message: types.Message):
+    args = message.text.split()
+
+    if len(args) < 2:
+        await message.answer(
+            "❌ İstifadə:\n<code>/subdomains google.com</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    domain = args[1].strip().lower()
+
+    wait_msg = await message.answer(
+        f"🔍 <b>{domain}</b> üçün subdomainlər axtarılır...",
+        parse_mode="HTML"
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            subdomain_scanner.scan,
+            domain
+        )
+
+        await wait_msg.delete()
+
+        if result["status"] == "error":
+            await message.answer(
+                f"❌ Xəta:\n<code>{result['error']}</code>",
+                parse_mode="HTML"
+            )
+            return
+
+        subs = result["subdomains"]
+
+        if not subs:
+            await message.answer(
+                f"⚠️ <b>{domain}</b> üçün subdomain tapılmadı.",
+                parse_mode="HTML"
+            )
+            return
+
+        preview = "\n".join(
+            f"• <code>{sub}</code>"
+            for sub in subs[:50]
+        )
+
+        text = (
+            f"🌐 <b>Subdomain Kəşfiyyatı</b>\n\n"
+            f"🎯 Domain: <code>{domain}</code>\n"
+            f"📊 Tapıldı: <b>{result['count']}</b>\n\n"
+            f"{preview}"
+        )
+
+        if len(subs) > 50:
+            text += (
+                f"\n\n⚠️ Daha {len(subs)-50} subdomain mövcuddur."
+            )
+
+        await message.answer(
+            text,
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+
+        await message.answer(
+            f"❌ Xəta:\n<code>{str(e)}</code>",
             parse_mode="HTML"
         )
