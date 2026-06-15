@@ -7,12 +7,12 @@ if _backend_root not in sys.path:
     sys.path.insert(0, _backend_root)
 
 from fastapi import FastAPI
-from app.database.connection import engine
-from app.database.base import Base
+from backend.app.database.connection import engine
+from backend.app.database.base import Base
 
 # bot.py import ediləndə router-lər artıq qeydiyyatdan keçmiş olur
-from app.bot.bot import bot, dp
-from services.scanner_service import ScannerService
+from backend.app.bot.bot import bot, dp
+from backend.services.scanner_service import ScannerService
 
 app = FastAPI(title="CyberGuard")
 scanner = ScannerService()
