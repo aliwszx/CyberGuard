@@ -1,9 +1,9 @@
 import asyncio
-from scanners.dns_scanner import DNSScanner
-from scanners.ssl_scanner import SSLScanner
-from scanners.header_scanner import HeaderScanner
-from scanners.tech_detector import TechDetector
-from scanners.port_scanner import PortScanner
+from backend.scanners.dns_scanner import DNSScanner
+from backend.scanners.ssl_scanner import SSLScanner
+from backend.scanners.header_scanner import HeaderScanner
+from backend.scanners.tech_detector import TechDetector
+from backend.scanners.port_scanner import PortScanner
 
 
 class ScannerService:
