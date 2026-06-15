@@ -1,5 +1,10 @@
+"""
+bot.py — FSM MemoryStorage əlavəsi ilə yenilənmiş versiyadır.
+DeepScan wizard-ı üçün Dispatcher-ə storage vermək məcburidir.
+"""
 import os
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,9 +15,8 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN tapılmadı")
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+dp  = Dispatcher(storage=MemoryStorage())   # ← FSM üçün storage əlavə edildi
 
-# Bütün handlerlər yalnız burada yüklənir
 from backend.app.bot.handlers import router
 
 dp.include_router(router)
