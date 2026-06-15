@@ -263,6 +263,70 @@ async def geoip_cmd(message: types.Message):
             f"❌ Xəta:\n<code>{str(e)}</code>",
             parse_mode="HTML"
         )
+
+@router.message(Command("dns"))
+async def dns_cmd(message: types.Message):
+    args = message.text.split()
+
+    if len(args) < 2:
+        await message.answer(
+            "❌ İstifadə:\n<code>/dns google.com</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    domain = args[1].strip()
+
+    wait_msg = await message.answer(
+        f"🔍 <b>{domain}</b> DNS məlumatları yoxlanılır...",
+        parse_mode="HTML"
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            dns_scanner.scan,
+            domain
+        )
+
+        await wait_msg.delete()
+
+        if result["status"] == "error":
+            await message.answer(
+                f"❌ Xəta:\n<code>{result['error']}</code>",
+                parse_mode="HTML"
+            )
+            return
+
+        dns_data = result["dns"]
+
+        def fmt(items):
+            return "\n".join(items[:5]) if items else "Yoxdur"
+
+        text = (
+            f"🌍 <b>DNS Məlumatları</b>\n\n"
+            f"🌐 Domain: <code>{domain}</code>\n\n"
+            f"<b>A</b>\n<code>{fmt(dns_data['A'])}</code>\n\n"
+            f"<b>AAAA</b>\n<code>{fmt(dns_data['AAAA'])}</code>\n\n"
+            f"<b>MX</b>\n<code>{fmt(dns_data['MX'])}</code>\n\n"
+            f"<b>NS</b>\n<code>{fmt(dns_data['NS'])}</code>\n\n"
+            f"<b>TXT</b>\n<code>{fmt(dns_data['TXT'])}</code>"
+        )
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+
+        await message.answer(
+            f"❌ Xəta:\n<code>{str(e)}</code>",
+            parse_mode="HTML"
+        )
 # =========================
 # SCAN
 # =========================
