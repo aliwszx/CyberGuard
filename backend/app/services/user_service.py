@@ -1,6 +1,6 @@
 from sqlalchemy import select
-from app.database.connection import SessionLocal
-from app.models.user import User
+from backend.app.database.connection import SessionLocal
+from backend.app.models.user import User
 
 
 class UserService:
