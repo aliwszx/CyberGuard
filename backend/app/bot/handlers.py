@@ -7,6 +7,7 @@ from backend.services.scanner_service import ScannerService
 from backend.app.services.user_service import UserService
 from backend.scanners.whois_scanner import WhoisScanner
 from backend.scanners.ip_scanner import IPScanner
+from backend.scanners.geoip_scanner import GeoIPScanner
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ user_service = UserService()
 
 whois_scanner = WhoisScanner()
 ip_scanner = IPScanner()
+geoip_scanner = GeoIPScanner()
 
 
 # =========================
@@ -60,6 +62,9 @@ async def help_cmd(message: types.Message):
 
         "🌐 <b>/ipintel domain.com</b>\n"
         "IP və hostname məlumatlarını göstərir.\n\n"
+
+        "🌍 <b>/geoip ip və ya domain</b>\n"
+        "IP geolokasiya məlumatları"
 
         "❓ <b>/help</b>\n"
         "Bu kömək menyusunu göstərir.\n\n"
@@ -198,7 +203,64 @@ async def ipintel_cmd(message: types.Message):
             parse_mode="HTML"
         )
 
+@router.message(Command("geoip"))
+async def geoip_cmd(message: types.Message):
+    args = message.text.split()
 
+    if len(args) < 2:
+        await message.answer(
+            "❌ İstifadə:\n<code>/geoip 8.8.8.8</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    target = args[1].strip()
+
+    wait_msg = await message.answer(
+        f"🌍 <b>{target}</b> üçün GeoIP məlumatları yoxlanılır...",
+        parse_mode="HTML"
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            geoip_scanner.scan,
+            target
+        )
+
+        await wait_msg.delete()
+
+        if result.get("status") == "error":
+            await message.answer(
+                f"❌ Xəta:\n<code>{result.get('error')}</code>",
+                parse_mode="HTML"
+            )
+            return
+
+        text = (
+            "🌍 <b>GeoIP Məlumatı</b>\n\n"
+            f"📡 IP: <code>{result.get('ip')}</code>\n"
+            f"🏳️ Ölkə: <code>{result.get('country')}</code>\n"
+            f"🏙 Şəhər: <code>{result.get('city')}</code>\n"
+            f"🏢 ISP: <code>{result.get('isp')}</code>\n"
+            f"🌐 ASN: <code>{result.get('asn')}</code>\n"
+            f"🕒 Timezone: <code>{result.get('timezone')}</code>"
+        )
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+
+        await message.answer(
+            f"❌ Xəta:\n<code>{str(e)}</code>",
+            parse_mode="HTML"
+        )
 # =========================
 # SCAN
 # =========================
