@@ -6,4 +6,5 @@ alembic
 python-dotenv
 pydantic
 aiogram==3.6.0
+dnspython==2.8.0
 passlib[bcrypt]
