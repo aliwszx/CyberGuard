@@ -82,10 +82,56 @@ PORT_STATE_ICONS: dict[str, str] = {
 }
 
 # ─────────────────────────────────────────────────────────────
-# FSM — /portscan üçün interaktiv rejim
+# FSM — /deepportscan üçün 4 mərhələli interaktiv wizard
 # ─────────────────────────────────────────────────────────────
-class PortScanStates(StatesGroup):
-    waiting_for_speed = State()
+class DeepScan(StatesGroup):
+    domain      = State()   # 1) domain daxil et
+    mode        = State()   # 2) port rejimi seç (ümumi / xüsusi / aralıq)
+    custom_ports = State()  # 3) xüsusi portları daxil et (yalnız "custom" seçilsə)
+    speed       = State()   # 4) sürət seç (fast / deep)
+
+
+# ─────────────────────────────────────────────────────────────
+# Klaviatura builder-ları
+# ─────────────────────────────────────────────────────────────
+
+def _kb_mode() -> types.ReplyKeyboardMarkup:
+    """Port rejimi seçim klaviaturası."""
+    return types.ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                types.KeyboardButton(text="🗂 Ümumi portlar"),
+                types.KeyboardButton(text="✏️ Xüsusi portlar"),
+            ],
+            [
+                types.KeyboardButton(text="📐 Port aralığı"),
+                types.KeyboardButton(text="❌ Ləğv et"),
+            ],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
+def _kb_speed() -> types.ReplyKeyboardMarkup:
+    """Sürət seçim klaviaturası."""
+    return types.ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                types.KeyboardButton(text="⚡ Sürətli (fast)"),
+                types.KeyboardButton(text="🔬 Dərin (deep)"),
+            ],
+            [
+                types.KeyboardButton(text="❌ Ləğv et"),
+            ],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
+def _kb_remove() -> types.ReplyKeyboardRemove:
+    return types.ReplyKeyboardRemove()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -645,85 +691,316 @@ async def cmd_portscan(message: types.Message, wait_msg: types.Message) -> None:
 
 
 # ═════════════════════════════════════════════════════════════
-# /deepportscan  — dərin (AdvancedPortScanner, speed="deep")
+# /deepportscan  — 4 mərhələli interaktiv FSM wizard
 # ═════════════════════════════════════════════════════════════
+
+# ── Mərhələ 1: /deepportscan əmri — domain soruşur ───────────
 @router.message(Command("deepportscan"))
-@with_wait_message("🔬 <b>{target}</b> üçün dərin port analizi aparılır (bu biraz çəkə bilər)...")
-async def cmd_deepportscan(message: types.Message, wait_msg: types.Message) -> None:
+async def cmd_deepportscan_start(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+
     args = _parse_args(message)
-    if not args:
-        await _usage_error(message, "/deepportscan google.com  və ya  /deepportscan google.com 22,80,443")
+
+    # Əmrlə birlikdə domain yazılıbsa (məs: /deepportscan google.com) birbaşa
+    # növbəti mərhələyə keç, yenidən sormaq lazım deyil.
+    if args:
+        domain = args[0].strip()
+        await state.update_data(domain=domain)
+        await state.set_state(DeepScan.mode)
+        await message.answer(
+            f"🔬 <b>Dərin Port Skanı Sihirbazı</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 Hədəf: <code>{domain}</code>\n\n"
+            "📋 <b>Port rejimini seçin:</b>\n\n"
+            "  🗂 <b>Ümumi portlar</b> — 17 ən çox istifadə olunan port\n"
+            "  ✏️ <b>Xüsusi portlar</b> — özünüz daxil edin (məs: 22,80,443)\n"
+            "  📐 <b>Port aralığı</b>   — aralıq (məs: 1-1000)",
+            parse_mode="HTML",
+            reply_markup=_kb_mode(),
+        )
         return
 
-    domain    = args[0]
-    port_spec = args[1] if len(args) > 1 else None
-
-    result = await _run_sync(
-        _port.scan,
-        domain,
-        port_spec,
-        None,
-        "deep",
-        False,
+    # Domain yazılmayıbsa soruşaq
+    await state.set_state(DeepScan.domain)
+    await message.answer(
+        "🔬 <b>Dərin Port Skanı Sihirbazı</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "1️⃣  Skan etmək istədiyiniz <b>domain və ya IP</b> ünvanını daxil edin:\n\n"
+        "<i>Nümunə: google.com  və ya  192.168.1.1</i>",
+        parse_mode="HTML",
+        reply_markup=_kb_remove(),
     )
 
-    if result.get("error"):
+
+# ── Mərhələ 1 → cavab: domain qəbul et ───────────────────────
+@router.message(DeepScan.domain)
+async def dscan_got_domain(message: types.Message, state: FSMContext) -> None:
+    text = message.text.strip()
+
+    if text == "❌ Ləğv et":
+        await _dscan_cancel(message, state)
+        return
+
+    if not text or " " in text:
+        await message.answer(
+            "❌ Düzgün domain/IP daxil edin.\n"
+            "<i>Nümunə: google.com</i>",
+            parse_mode="HTML",
+        )
+        return
+
+    domain = text.lower()
+    await state.update_data(domain=domain)
+    await state.set_state(DeepScan.mode)
+
+    await message.answer(
+        f"✅ Hədəf: <code>{domain}</code>\n\n"
+        "2️⃣  <b>Port rejimini seçin:</b>\n\n"
+        "  🗂 <b>Ümumi portlar</b> — 17 ən çox istifadə olunan port\n"
+        "  ✏️ <b>Xüsusi portlar</b> — özünüz daxil edin (məs: 22,80,443)\n"
+        "  📐 <b>Port aralığı</b>   — aralıq (məs: 1-1000)",
+        parse_mode="HTML",
+        reply_markup=_kb_mode(),
+    )
+
+
+# ── Mərhələ 2 → cavab: rejim seçildi ─────────────────────────
+@router.message(DeepScan.mode)
+async def dscan_got_mode(message: types.Message, state: FSMContext) -> None:
+    choice = message.text.strip()
+
+    if choice == "❌ Ləğv et":
+        await _dscan_cancel(message, state)
+        return
+
+    if choice == "🗂 Ümumi portlar":
+        await state.update_data(port_spec=None, port_range=None)
+        await state.set_state(DeepScan.speed)
+        await message.answer(
+            "✅ Rejim: <b>Ümumi portlar</b>\n\n"
+            "3️⃣  <b>Skan sürətini seçin:</b>\n\n"
+            "  ⚡ <b>Sürətli (fast)</b> — 1s timeout · 100 thread · tez nəticə\n"
+            "  🔬 <b>Dərin (deep)</b>   — 3s timeout · 30 thread · daha dəqiq",
+            parse_mode="HTML",
+            reply_markup=_kb_speed(),
+        )
+
+    elif choice == "✏️ Xüsusi portlar":
+        await state.update_data(port_range=None)
+        await state.set_state(DeepScan.custom_ports)
+        await message.answer(
+            "✅ Rejim: <b>Xüsusi portlar</b>\n\n"
+            "3️⃣  Skan etmək istədiyiniz <b>portları vergüllə</b> daxil edin:\n\n"
+            "<i>Nümunə: 22,80,443,3306,8080</i>",
+            parse_mode="HTML",
+            reply_markup=_kb_remove(),
+        )
+
+    elif choice == "📐 Port aralığı":
+        await state.update_data(port_spec=None)
+        await state.set_state(DeepScan.custom_ports)
+        await state.update_data(_range_mode=True)
+        await message.answer(
+            "✅ Rejim: <b>Port aralığı</b>\n\n"
+            "3️⃣  Port <b>aralığını</b> daxil edin:\n\n"
+            "<i>Nümunə: 1-1000  və ya  8000-9000</i>",
+            parse_mode="HTML",
+            reply_markup=_kb_remove(),
+        )
+
+    else:
+        await message.answer(
+            "⬇️ Zəhmət olmasa aşağıdakı düymələrdən birini seçin.",
+            reply_markup=_kb_mode(),
+        )
+
+
+# ── Mərhələ 3 → cavab: xüsusi portlar / aralıq ──────────────
+@router.message(DeepScan.custom_ports)
+async def dscan_got_ports(message: types.Message, state: FSMContext) -> None:
+    text = message.text.strip()
+
+    if text == "❌ Ləğv et":
+        await _dscan_cancel(message, state)
+        return
+
+    data = await state.get_data()
+    range_mode = data.get("_range_mode", False)
+
+    if range_mode:
+        # Aralıq validasiyası: "start-end"
+        parts = text.split("-")
+        if len(parts) != 2 or not all(p.strip().isdigit() for p in parts):
+            await message.answer(
+                "❌ Düzgün aralıq formatı deyil.\n"
+                "<i>Nümunə: 1-1000</i>",
+                parse_mode="HTML",
+            )
+            return
+        start, end = int(parts[0].strip()), int(parts[1].strip())
+        if not (0 < start <= end <= 65535):
+            await message.answer(
+                "❌ Port aralığı 1-65535 arasında olmalıdır.",
+                parse_mode="HTML",
+            )
+            return
+        await state.update_data(port_range=text.replace(" ", ""), port_spec=None)
+        mode_label = f"📐 Aralıq: <code>{text}</code>"
+
+    else:
+        # Vergüllə ayrılmış portlar validasiyası
+        raw_ports = [p.strip() for p in text.split(",") if p.strip()]
+        if not raw_ports:
+            await message.answer("❌ Port daxil edilmədi.", parse_mode="HTML")
+            return
+        invalid = [p for p in raw_ports if not p.isdigit() or not (0 < int(p) <= 65535)]
+        if invalid:
+            await message.answer(
+                f"❌ Yanlış port(lar): <code>{', '.join(invalid)}</code>\n"
+                "Portlar 1-65535 arasında rəqəm olmalıdır.",
+                parse_mode="HTML",
+            )
+            return
+        clean = ",".join(raw_ports)
+        await state.update_data(port_spec=clean, port_range=None)
+        mode_label = f"✏️ Portlar: <code>{clean}</code>"
+
+    await state.set_state(DeepScan.speed)
+    await message.answer(
+        f"✅ {mode_label}\n\n"
+        "4️⃣  <b>Skan sürətini seçin:</b>\n\n"
+        "  ⚡ <b>Sürətli (fast)</b> — 1s timeout · 100 thread · tez nəticə\n"
+        "  🔬 <b>Dərin (deep)</b>   — 3s timeout · 30 thread · daha dəqiq",
+        parse_mode="HTML",
+        reply_markup=_kb_speed(),
+    )
+
+
+# ── Mərhələ 4 → cavab: sürət seçildi → skan başla ───────────
+@router.message(DeepScan.speed)
+async def dscan_got_speed(message: types.Message, state: FSMContext) -> None:
+    choice = message.text.strip()
+
+    if choice == "❌ Ləğv et":
+        await _dscan_cancel(message, state)
+        return
+
+    if choice == "⚡ Sürətli (fast)":
+        speed = "fast"
+        speed_label = "⚡ Sürətli"
+    elif choice == "🔬 Dərin (deep)":
+        speed = "deep"
+        speed_label = "🔬 Dərin"
+    else:
+        await message.answer(
+            "⬇️ Zəhmət olmasa düymələrdən birini seçin.",
+            reply_markup=_kb_speed(),
+        )
+        return
+
+    data = await state.get_data()
+    await state.clear()
+
+    domain     = data["domain"]
+    port_spec  = data.get("port_spec")
+    port_range = data.get("port_range")
+
+    # Özet mesajı
+    if port_spec:
+        ports_summary = f"✏️ Xüsusi: <code>{port_spec}</code>"
+    elif port_range:
+        ports_summary = f"📐 Aralıq: <code>{port_range}</code>"
+    else:
+        ports_summary = "🗂 Ümumi portlar (17)"
+
+    wait_msg = await message.answer(
+        "🔬 <b>Dərin Port Skanı Başladı</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎯 Hədəf:  <code>{domain}</code>\n"
+        f"📋 Portlar: {ports_summary}\n"
+        f"🏎 Sürət:  {speed_label}\n\n"
+        "<i>⏳ Zəhmət olmasa gözləyin...</i>",
+        parse_mode="HTML",
+        reply_markup=_kb_remove(),
+    )
+
+    try:
+        result = await _run_sync(
+            _port.scan,
+            domain,
+            port_spec,
+            port_range,
+            speed,
+            False,
+        )
+    except Exception as exc:
+        logger.exception("deepportscan FSM xəta: %s", exc)
         await wait_msg.delete()
+        await message.answer(
+            f"❌ <b>Gözlənilməz xəta:</b>\n<code>{exc}</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    await wait_msg.delete()
+
+    if result.get("error"):
         await message.answer(
             f"❌ <b>Xəta:</b>\n<code>{result['error']}</code>",
             parse_mode="HTML",
         )
         return
 
+    # ── Nəticələri format et ──────────────────────────────────
     open_ports    = result.get("open_ports", [])
     risk          = result.get("risk", "unknown")
     risk_icon     = RISK_ICONS.get(risk, "⚪")
     risk_analysis = result.get("risk_analysis", [])
     total_scanned = result.get("total_scanned", 0)
 
-    # ── Port cədvəli ──────────────────────────────────────────
+    # Port cədvəli
     if not open_ports:
         ports_text = "  🔒 <i>Açıq port tapılmadı</i>"
     else:
         ports_text = "\n".join(
             f"  {PORT_STATE_ICONS.get(p['state'], '⚪')} "
-            f"<code>{p['port']:<6}</code> "
+            f"<code>{str(p['port']):<6}</code> "
             f"<b>{p.get('service', 'Unknown')}</b>"
-            + (f"\n         <i>↳ {p['banner'][:60]}</i>" if p.get("banner") else "")
+            + (f"\n    <i>↳ {p['banner'][:60]}</i>" if p.get("banner") else "")
             for p in open_ports
         )
 
-    # ── Risk analizi ──────────────────────────────────────────
+    # Risk analizi
     if risk_analysis:
         risky   = [a for a in risk_analysis if a["is_risky"]]
         safe_pa = [a for a in risk_analysis if not a["is_risky"]]
-
         analysis_lines = []
         if risky:
             analysis_lines.append("⚠️ <b>Riskli portlar:</b>")
             for a in risky:
                 analysis_lines.append(
                     f"  🔴 Port <code>{a['port']}</code> ({a['service']})\n"
-                    f"       ├ <i>{a['risk_desc']}</i>\n"
-                    f"       └ 💡 {a['recommendation']}"
+                    f"    ├ <i>{a['risk_desc']}</i>\n"
+                    f"    └ 💡 {a['recommendation']}"
                 )
         if safe_pa:
             analysis_lines.append("\n📋 <b>Digər açıq portlar:</b>")
             for a in safe_pa:
                 analysis_lines.append(
                     f"  🟡 Port <code>{a['port']}</code> ({a['service']})\n"
-                    f"       └ <i>{a['risk_desc']}</i>"
+                    f"    └ <i>{a['risk_desc']}</i>"
                 )
         analysis_text = "\n".join(analysis_lines)
     else:
-        analysis_text = "  <i>Risk analizi üçün məlumat yoxdur.</i>"
+        analysis_text = "  <i>Aşkar edilmiş portlar üçün risk profili yoxdur.</i>"
 
-    await wait_msg.delete()
     text = _safe_truncate(
-        "🔬 <b>Dərin Port Analizi</b>\n"
+        "🔬 <b>Dərin Port Analizi — Nəticə</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━\n"
         f"🎯 Hədəf:       <code>{domain}</code>\n"
         f"📡 IP:          <code>{result.get('ip', '—')}</code>\n"
+        f"📋 Port rejimi: {ports_summary}\n"
+        f"🏎 Sürət:       {speed_label}\n"
         f"🔢 Skan edildi: <b>{total_scanned}</b> port\n"
         f"🟢 Açıq port:   <b>{len(open_ports)}</b>\n"
         f"{risk_icon} Risk:          <b>{risk.upper()}</b>\n\n"
@@ -732,6 +1009,16 @@ async def cmd_deepportscan(message: types.Message, wait_msg: types.Message) -> N
         f"{analysis_text}"
     )
     await message.answer(text, parse_mode="HTML")
+
+
+# ── Ləğv etmə köməkçisi ───────────────────────────────────────
+async def _dscan_cancel(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(
+        "❌ <b>Port skanı ləğv edildi.</b>",
+        parse_mode="HTML",
+        reply_markup=_kb_remove(),
+    )
 
 
 # ═════════════════════════════════════════════════════════════
