@@ -40,7 +40,37 @@ async def start(message: types.Message):
         parse_mode="HTML"
     )
 
+# =========================
+# HELP
+# =========================
 
+@router.message(Command("help"))
+async def help_cmd(message: types.Message):
+    text = (
+        "🛡 <b>CyberGuard Help</b>\n\n"
+
+        "📌 Mövcud əmrlər:\n\n"
+
+        "🔍 <b>/scan domain.com</b>\n"
+        "Domain üzrə tam təhlükəsizlik analizi.\n\n"
+
+        "🌍 <b>/whois domain.com</b>\n"
+        "WHOIS məlumatlarını göstərir.\n\n"
+
+        "🌐 <b>/ipintel domain.com</b>\n"
+        "IP və hostname məlumatlarını göstərir.\n\n"
+
+        "❓ <b>/help</b>\n"
+        "Bu kömək menyusunu göstərir.\n\n"
+
+        "Nümunələr:\n"
+        "<code>/scan google.com</code>\n"
+        "<code>/whois google.com</code>\n"
+        "<code>/ipintel google.com</code>"
+    )
+
+    await message.answer(text, parse_mode="HTML")
+    
 # =========================
 # WHOIS
 # =========================
