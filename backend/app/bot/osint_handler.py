@@ -17,6 +17,10 @@ ip_scanner = IPScanner()
 
 @router.message(Command("whois"))
 async def whois_cmd(message: types.Message):
+    print("WHOIS COMMAND RECEIVED:", message.text)
+    
+@router.message(Command("whois"))
+async def whois_cmd(message: types.Message):
     args = message.text.split()
 
     if len(args) < 2:
