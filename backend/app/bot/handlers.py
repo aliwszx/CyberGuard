@@ -10,6 +10,7 @@ from backend.scanners.ip_scanner import IPScanner
 from backend.scanners.geoip_scanner import GeoIPScanner
 from backend.scanners.dns_scanner import DNSScanner
 from backend.scanners.subdomain_scanner import SubdomainScanner
+from backend.scanners.header_scanner import HeaderScanner
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ ip_scanner = IPScanner()
 geoip_scanner = GeoIPScanner()
 dns_scanner = DNSScanner()
 subdomain_scanner = SubdomainScanner()
+header_scanner = HeaderScanner()
 
 # =========================
 # START
@@ -443,6 +445,92 @@ async def subdomains_cmd(message: types.Message):
             text += (
                 f"\n\n⚠️ Daha {len(subs)-50} subdomain mövcuddur."
             )
+
+        await message.answer(
+            text,
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+
+        await message.answer(
+            f"❌ Xəta:\n<code>{str(e)}</code>",
+            parse_mode="HTML"
+        )
+
+@router.message(Command("headers"))
+async def headers_cmd(message: types.Message):
+    args = message.text.split()
+
+    if len(args) < 2:
+        await message.answer(
+            "❌ İstifadə:\n<code>/headers google.com</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    domain = args[1].strip()
+
+    wait_msg = await message.answer(
+        f"🔍 <b>{domain}</b> HTTP başlıqları yoxlanılır...",
+        parse_mode="HTML"
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            header_scanner.scan,
+            domain
+        )
+
+        await wait_msg.delete()
+
+        if result["status"] == "error":
+            await message.answer(
+                f"❌ Xəta:\n<code>{result['error']}</code>",
+                parse_mode="HTML"
+            )
+            return
+
+        risk = result["risk"]
+
+        risk_icon = {
+            "low": "🟢",
+            "medium": "🟡",
+            "high": "🔴"
+        }.get(risk, "⚪")
+
+        present_text = "\n".join(
+            f"✅ {h}"
+            for h in result["present"].keys()
+        )
+
+        missing_text = "\n".join(
+            f"❌ {h}"
+            for h in result["missing"]
+        )
+
+        if not present_text:
+            present_text = "—"
+
+        if not missing_text:
+            missing_text = "Yoxdur"
+
+        text = (
+            f"🔒 <b>HTTP Security Headers</b>\n\n"
+            f"🌐 Domain: <code>{domain}</code>\n\n"
+            f"{risk_icon} Risk: <b>{risk.upper()}</b>\n\n"
+            f"<b>Mövcud:</b>\n"
+            f"{present_text}\n\n"
+            f"<b>Çatışmayan:</b>\n"
+            f"{missing_text}"
+        )
 
         await message.answer(
             text,
