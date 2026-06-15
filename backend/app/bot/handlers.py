@@ -11,6 +11,9 @@ from backend.scanners.geoip_scanner import GeoIPScanner
 from backend.scanners.dns_scanner import DNSScanner
 from backend.scanners.subdomain_scanner import SubdomainScanner
 from backend.scanners.header_scanner import HeaderScanner
+from backend.scanners.ssl_scanner import SSLScanner
+from backend.scanners.tech_detector import TechDetector
+from backend.scanners.advanced_port_scanner import AdvancedPortScanner
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +28,204 @@ geoip_scanner = GeoIPScanner()
 dns_scanner = DNSScanner()
 subdomain_scanner = SubdomainScanner()
 header_scanner = HeaderScanner()
+ssl_scanner = SSLScanner()
+tech_detector = TechDetector()
+port_scanner = AdvancedPortScanner()
 
 # =========================
 # START
 # =========================
+
+@router.message(Command("ssl"))
+async def ssl_cmd(message: types.Message):
+    args = message.text.split()
+
+    if len(args) < 2:
+        await message.answer(
+            "❌ İstifadə:\n<code>/ssl google.com</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    domain = args[1].strip()
+
+    wait_msg = await message.answer(
+        f"🔒 <b>{domain}</b> SSL yoxlanılır...",
+        parse_mode="HTML"
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            ssl_scanner.scan,
+            domain
+        )
+
+        await wait_msg.delete()
+
+        status_icon = "✅" if result.get("valid") else "❌"
+
+        text = (
+            f"🔒 <b>SSL Report</b>\n\n"
+            f"🌐 Domain: <code>{domain}</code>\n\n"
+            f"{status_icon} Status: <b>{result.get('ssl_status')}</b>\n"
+            f"🔐 TLS: <code>{result.get('tls_version') or 'Unknown'}</code>\n"
+            f"🏢 Issuer: <code>{result.get('issuer')}</code>\n"
+            f"📅 Expires: <code>{result.get('expires')}</code>"
+        )
+
+        await message.answer(
+            text,
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+
+        await message.answer(
+            f"❌ Xəta:\n<code>{str(e)}</code>",
+            parse_mode="HTML"
+        )
+
+@router.message(Command("tech"))
+async def tech_cmd(message: types.Message):
+    args = message.text.split()
+
+    if len(args) < 2:
+        await message.answer(
+            "❌ İstifadə:\n<code>/tech google.com</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    domain = args[1].strip()
+
+    wait_msg = await message.answer(
+        f"🧠 <b>{domain}</b> texnologiyaları aşkarlanır...",
+        parse_mode="HTML"
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            tech_detector.scan,
+            domain
+        )
+
+        await wait_msg.delete()
+
+        text = (
+            f"🧠 <b>Technology Detection</b>\n\n"
+            f"🌐 Domain: <code>{domain}</code>\n\n"
+            f"🖥 Server: <code>{result.get('server') or 'Unknown'}</code>\n"
+            f"⚙️ Framework: <code>{result.get('framework') or 'Unknown'}</code>\n"
+            f"📰 CMS: <code>{result.get('cms') or 'Unknown'}</code>\n"
+            f"☁️ CDN: <code>{result.get('cdn') or 'Unknown'}</code>"
+        )
+
+        await message.answer(
+            text,
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+
+        await message.answer(
+            f"❌ Xəta:\n<code>{str(e)}</code>",
+            parse_mode="HTML"
+        )
+
+@router.message(Command("ports"))
+async def ports_cmd(message: types.Message):
+    args = message.text.split()
+
+    if len(args) < 2:
+        await message.answer(
+            "❌ İstifadə:\n<code>/ports google.com</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    domain = args[1].strip()
+
+    wait_msg = await message.answer(
+        f"🔌 <b>{domain}</b> portları yoxlanılır...",
+        parse_mode="HTML"
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+
+        result = await loop.run_in_executor(
+            None,
+            port_scanner.scan,
+            domain
+        )
+
+        await wait_msg.delete()
+
+        if result.get("error"):
+            await message.answer(
+                f"❌ <code>{result['error']}</code>",
+                parse_mode="HTML"
+            )
+            return
+
+        ports = result.get("open_ports", [])
+
+        if not ports:
+            await message.answer(
+                "✅ Açıq port tapılmadı.",
+                parse_mode="HTML"
+            )
+            return
+
+        text = (
+            f"🔌 <b>Port Scan</b>\n\n"
+            f"🌐 IP: <code>{result['ip']}</code>\n"
+            f"⚠️ Risk: <b>{result['risk'].upper()}</b>\n\n"
+        )
+
+        for p in ports[:25]:
+            service = p.get("service", "Unknown")
+
+            text += (
+                f"• <code>{p['port']}</code> "
+                f"{service}\n"
+            )
+
+        if len(ports) > 25:
+            text += (
+                f"\n... və daha "
+                f"{len(ports)-25} açıq port."
+            )
+
+        await message.answer(
+            text,
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+
+        await message.answer(
+            f"❌ Xəta:\n<code>{str(e)}</code>",
+            parse_mode="HTML"
+        )
 
 @router.message(Command("start"))
 async def start(message: types.Message):
