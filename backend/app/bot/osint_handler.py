@@ -151,4 +151,3 @@ async def ipintel_cmd(message: types.Message):
             f"❌ IP analizində xəta:\n<code>{str(e)}</code>",
             parse_mode="HTML"
         )
-```
