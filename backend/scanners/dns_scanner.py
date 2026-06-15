@@ -2,28 +2,38 @@ import dns.resolver
 
 
 class DNSScanner:
+    def scan(self, domain):
+        try:
+            result = {}
 
-    def scan(self, domain: str):
-        result = {
-            "target": domain,
-            "dns": {
-                "A": [],
-                "AAAA": [],
-                "MX": [],
-                "TXT": [],
-                "NS": [],
-                "CNAME": []
+            records = ["A", "AAAA", "MX", "NS", "TXT"]
+
+            for record in records:
+                try:
+                    answers = dns.resolver.resolve(domain, record)
+
+                    if record == "MX":
+                        result[record] = [
+                            str(r.exchange).rstrip(".")
+                            for r in answers
+                        ]
+                    else:
+                        result[record] = [
+                            str(r)
+                            for r in answers
+                        ]
+
+                except Exception:
+                    result[record] = []
+
+            return {
+                "status": "ok",
+                "domain": domain,
+                "dns": result
             }
-        }
 
-        record_types = ["A", "AAAA", "MX", "TXT", "NS", "CNAME"]
-
-        for rtype in record_types:
-            try:
-                answers = dns.resolver.resolve(domain, rtype, raise_on_no_answer=False)
-                if answers:
-                    result["dns"][rtype] = [str(r.to_text()) for r in answers]
-            except Exception:
-                result["dns"][rtype] = []
-
-        return result
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e)
+            }
