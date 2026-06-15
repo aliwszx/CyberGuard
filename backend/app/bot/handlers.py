@@ -30,15 +30,16 @@ async def start(message: types.Message):
         username=message.from_user.username
     )
 
-    await message.answer(
-        "🛡 <b>CyberGuard Bot</b>\n\n"
-        "Mövcud əmrlər:\n"
-        "/scan domain.com\n"
-        "/whois domain.com\n"
-        "/ipintel domain.com\n\n"
-        f"👤 User ID: <code>{user.id}</code>",
-        parse_mode="HTML"
-    )
+   await message.answer(
+    "🛡 <b>CyberGuard Bot</b>\n\n"
+    "Mövcud əmrlər:\n"
+    "/scan domain.com\n"
+    "/whois domain.com\n"
+    "/ipintel domain.com\n"
+    "/help\n\n"
+    f"👤 User ID: <code>{user.id}</code>",
+    parse_mode="HTML"
+)
 
 # =========================
 # HELP
