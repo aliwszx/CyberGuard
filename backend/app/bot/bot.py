@@ -19,9 +19,9 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Router-ləri BİRBAŞA burada qeydiyyatdan keçir — heç bir lazy import yox
-from app.bot.handlers import router
-from app.bot.portscan_handler import router as portscan_router
-from app.bot.osint_handler import router as osint_router
+from backend.app.bot.handlers import router
+from backend.app.bot.portscan_handler import router as portscan_router
+from backend.app.bot.osint_handler import router as osint_router
 
 dp.include_router(router)
 dp.include_router(portscan_router)
