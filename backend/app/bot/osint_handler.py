@@ -1,13 +1,14 @@
+```python
 import logging
-logging.basicConfig(level=logging.DEBUG)
+import asyncio
 
 from aiogram import Router, types
 from aiogram.filters import Command
-import asyncio
 
-# sys.path bot.py-da artıq set olunub
 from backend.scanners.whois_scanner import WhoisScanner
 from backend.scanners.ip_scanner import IPScanner
+
+logging.basicConfig(level=logging.INFO)
 
 router = Router()
 
@@ -15,85 +16,140 @@ whois_scanner = WhoisScanner()
 ip_scanner = IPScanner()
 
 
+# =========================
+# WHOIS
+# =========================
 @router.message(Command("whois"))
 async def whois_cmd(message: types.Message):
-    print("WHOIS COMMAND RECEIVED:", message.text)
-    
-@router.message(Command("whois"))
-async def whois_cmd(message: types.Message):
+    logging.info(f"WHOIS COMMAND RECEIVED: {message.text}")
+
     args = message.text.split()
 
     if len(args) < 2:
         await message.answer(
-            "❌ İstifadə: <code>/whois domain.com</code>",
+            "❌ İstifadə:\n<code>/whois google.com</code>",
             parse_mode="HTML"
         )
         return
 
-    domain = args[1].strip()
+    domain = args[1].strip().lower()
+
     wait_msg = await message.answer(
-        f"🔍 <b>{domain}</b> üçün WHOIS sorğusu...",
+        f"🔍 <b>{domain}</b> üçün WHOIS məlumatları yoxlanılır...",
         parse_mode="HTML"
     )
 
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, whois_scanner.scan, domain)
+    try:
+        loop = asyncio.get_running_loop()
 
-    await wait_msg.delete()
+        result = await loop.run_in_executor(
+            None,
+            whois_scanner.scan,
+            domain
+        )
 
-    if result["status"] == "error":
+        logging.info(f"WHOIS RESULT: {result}")
+
+        await wait_msg.delete()
+
+        if result.get("status") == "error":
+            await message.answer(
+                f"❌ <b>Xəta:</b>\n<code>{result.get('error')}</code>",
+                parse_mode="HTML"
+            )
+            return
+
+        text = (
+            "🌍 <b>WHOIS Məlumatı</b>\n"
+            "────────────────────\n"
+            f"🌐 Domain: <code>{result.get('domain')}</code>\n"
+            f"🏢 Registrar: <code>{result.get('registrar') or 'N/A'}</code>\n"
+            f"📅 Yaradılma: <code>{result.get('creation_date') or 'N/A'}</code>\n"
+            f"⏳ Bitmə: <code>{result.get('expiration_date') or 'N/A'}</code>\n"
+            f"🖧 Name Servers: <code>{result.get('name_servers') or 'N/A'}</code>"
+        )
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        logging.exception("WHOIS ERROR")
+
+        try:
+            await wait_msg.delete()
+        except:
+            pass
+
         await message.answer(
-            f"❌ <b>Xəta:</b> <code>{result['error']}</code>",
+            f"❌ WHOIS sorğusunda xəta:\n<code>{str(e)}</code>",
             parse_mode="HTML"
         )
-        return
-
-    text = (
-        f"🌍 <b>WHOIS Məlumatı</b>\n"
-        f"{'─' * 28}\n"
-        f"🌐 Domain: <code>{result['domain']}</code>\n"
-        f"🏢 Registrar: <code>{result.get('registrar') or 'N/A'}</code>\n"
-        f"📅 Yaradılma: <code>{result.get('creation_date', 'N/A')}</code>\n"
-        f"⏳ Bitmə tarixi: <code>{result.get('expiration_date', 'N/A')}</code>"
-    )
-
-    await message.answer(text, parse_mode="HTML")
 
 
+# =========================
+# IP Intelligence
+# =========================
 @router.message(Command("ipintel"))
-async def ip_cmd(message: types.Message):
+async def ipintel_cmd(message: types.Message):
+    logging.info(f"IPINTEL COMMAND RECEIVED: {message.text}")
+
     args = message.text.split()
 
     if len(args) < 2:
         await message.answer(
-            "❌ İstifadə: <code>/ipintel domain.com</code> və ya <code>/ipintel 1.2.3.4</code>",
+            "❌ İstifadə:\n"
+            "<code>/ipintel google.com</code>\n"
+            "və ya\n"
+            "<code>/ipintel 8.8.8.8</code>",
             parse_mode="HTML"
         )
         return
 
     target = args[1].strip()
+
     wait_msg = await message.answer(
-        f"🔍 <b>{target}</b> üçün IP sorğusu...",
+        f"🔍 <b>{target}</b> üçün IP məlumatları yoxlanılır...",
         parse_mode="HTML"
     )
 
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, ip_scanner.scan, target)
+    try:
+        loop = asyncio.get_running_loop()
 
-    await wait_msg.delete()
+        result = await loop.run_in_executor(
+            None,
+            ip_scanner.scan,
+            target
+        )
 
-    if result["status"] == "error":
+        logging.info(f"IP RESULT: {result}")
+
+        await wait_msg.delete()
+
+        if result.get("status") == "error":
+            await message.answer(
+                f"❌ <b>Xəta:</b>\n<code>{result.get('error')}</code>",
+                parse_mode="HTML"
+            )
+            return
+
+        text = (
+            "🌐 <b>IP Intelligence</b>\n"
+            "────────────────────\n"
+            f"📡 IP: <code>{result.get('ip')}</code>\n"
+            f"🖥 Hostname: <code>{result.get('hostname')}</code>"
+        )
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        logging.exception("IPINTEL ERROR")
+
+        try:
+            await wait_msg.delete()
+        except:
+            pass
+
         await message.answer(
-            f"❌ <b>Xəta:</b> <code>{result['error']}</code>",
+            f"❌ IP analizində xəta:\n<code>{str(e)}</code>",
             parse_mode="HTML"
         )
-        return
-
-    text = (
-        f"🌐 <b>IP Intelligence</b>\n"
-        f"{'─' * 28}\n"
-        f"📡 IP: <code>{result['ip']}</code>\n"
-        f"🖥 Hostname: <code>{result['hostname']}</code>"
-    )
-
-    await message.answer(text, parse_mode="HTML")
+```
