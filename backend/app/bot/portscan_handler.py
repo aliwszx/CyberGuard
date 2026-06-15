@@ -22,7 +22,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-from scanners.port_scanner_advanced import AdvancedPortScanner
+from backend.scanners.port_scanner_advanced import AdvancedPortScanner
 
 router = Router()
 scanner = AdvancedPortScanner()
